@@ -99,34 +99,36 @@ float __fastcall hk_getFov(uintptr_t* self, float a, bool enableVariableFOV) {
 
 // MinHook will redirect Dimension::getTimeOfDay to this function, replacing its behavior with our own code.
 static bool specialTimeSet = false;
+static float timeValue = 0.0f;
 
 static float hk_getTimeOfDay(void* _this, int32_t time, float alpha) {
-    const bool toggleActive = (GetAsyncKeyState(VK_OEM_PLUS) & 0x1) != 0;
-    static float value = 0.0f;
-    if (toggleActive) {
+    if (const bool toggleActive = (GetAsyncKeyState(VK_OEM_PLUS) & 0x1) != 0) {
         // println("Hello World");
         specialTimeSet = !specialTimeSet;
-        std::println("Toggling Active: {} SpecialTimeSet: {}", std::to_string(toggleActive), specialTimeSet);
+        // std::println("Toggling Active: {} SpecialTimeSet: {}", toggleActive, specialTimeSet);
     }
     if (specialTimeSet) {
-        const bool leftPressed = (GetAsyncKeyState('[') & 0x8000) != 0;
-        const bool rightPressed = (GetAsyncKeyState(']') & 0x8000) != 0;
+        const bool leftPressed = (GetAsyncKeyState(VK_OEM_4) & 0x8000) != 0;
+        const bool rightPressed = (GetAsyncKeyState(VK_OEM_6) & 0x8000) != 0;
+        // std::println("Left Pressed: {} Right Pressed: {}", leftPressed, rightPressed);
         if (leftPressed) {
-            value += 0.00001f;
-            value = std::fmodf(value, 1.f);
+            timeValue += 0.00001f;
+            timeValue = std::fmodf(timeValue, 1.f);
         }
         if (rightPressed) {
-            value -= 0.00001f;
-            value = std::fmodf(value, 1.f);
+            timeValue -= 0.00001f;
+            timeValue = std::fmodf(timeValue, 1.f);
         }
-    }
+    } else {
+        timeValue = time;
+    };
         //             float target = isCPressed ? TARGET_ZOOM : 1.0f;
         //
         //             g_zoomModifier = g_zoomModifier + (target - g_zoomModifier) * 0.1f;
         //
         //             levelRenderer->player->fov_x *= g_zoomModifier;
         //             levelRenderer->player->fov_y *= g_zoomModifier;
-    return value;
+    return timeValue;
 }
 
 static bool g_Running = true;
