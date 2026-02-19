@@ -101,11 +101,12 @@ float __fastcall hk_getFov(uintptr_t* self, float a, bool enableVariableFOV) {
 static bool specialTimeSet = false;
 
 static float hk_getTimeOfDay(void* _this, int32_t time, float alpha) {
-    const bool toggleActive = (GetAsyncKeyState('=') & 0x1) != 0;
+    const bool toggleActive = (GetAsyncKeyState(VK_OEM_PLUS) & 0x1) != 0;
     static float value = 0.0f;
     if (toggleActive) {
         // println("Hello World");
         specialTimeSet = !specialTimeSet;
+        std::println("Toggling Active: {} SpecialTimeSet: {}", std::to_string(toggleActive), specialTimeSet);
     }
     if (specialTimeSet) {
         const bool leftPressed = (GetAsyncKeyState('[') & 0x8000) != 0;
