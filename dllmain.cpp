@@ -8,6 +8,107 @@
 // std::println << "a"
 #include <MinHook.h>
 // #pragma pack(push, 1)
+#include <dxgi.h>
+#include <d3d11.h>
+#include <d3d12.h>
+#include <winrt/base.h>
+#include <kiero.hpp>
+#include <wrl/client.h>
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_dx11.h"
+#include "imgui/imgui_impl_dx12.h"
+// #include "cmake-build-debug/_deps/imgui-src/imgui.h"
+// #include "cmake-build-debug/_deps/imgui-src/backends/imgui_impl_dx11.h"
+// #include "cmake-build-debug/_deps/imgui-src/backends/imgui_impl_dx12.h"
+// Required for winrt::com_ptr, which is effectively a smart-pointer type
+// for COM (and subsequently DirectX) objects. winrt::com_ptr uses RAII
+// to manage the reference count of the underlying object, so we can avoid
+// manual calls to AddRef() and Release().
+using Microsoft::WRL::ComPtr;
+
+using presentFunc = HRESULT(*)(IDXGISwapChain*, UINT, UINT);
+static presentFunc oPresent{};
+
+static winrt::com_ptr<ID3D11Device> d3d11Device;
+static winrt::com_ptr<ID3D12Device> d3d12Device;
+
+static ComPtr<ID3D11DeviceContext> d3d11Context;
+static ComPtr<ID3D11RenderTargetView> d3d11RTV;
+
+static HRESULT hk_Present(IDXGISwapChain* _this, UINT SyncInterval, UINT Flags) {
+    static bool initialized = false;
+    if (!initialized) {
+        // ImGui::CreateContext();
+    }
+    if (SUCCEEDED(_this->GetDevice(IID_PPV_ARGS(d3d12Device.put())))) {
+        // ImGui_ImplDX12_Init(_this->GetDevice, );
+        // ImGui::NewFrame();
+
+        // ImGui::Begin("Hello World!");
+        // If this call succeeds, DirectX 12 is being used.
+        // Do your DirectX 12-specific initialization work here.
+    } else if (SUCCEEDED(_this->GetDevice(IID_PPV_ARGS(d3d11Device.put())))) {
+        // ImGui_ImplDX11_NewFrame();
+        // ImGui::NewFrame();
+        // ImGui::Begin("Hello World!");
+        // ImGui::Text("DX11 rendering works!");
+        // ImGui::End();
+        // ImGui::Render();
+        // d3d11Context->OMSetRenderTargets(1, d3d11RTV.GetAddressOf(), nullptr);
+        // ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+        // If this call succeeds, DirectX 11 is being used.
+        // Do your DirectX 11-specific initialization work here.
+    } else {
+        // No device could be retrieved.
+    }
+
+    return oPresent(_this, SyncInterval, Flags);
+}
+
+using resizeBuffersFunc = HRESULT(*)(IDXGISwapChain*,
+    UINT, UINT, UINT, DXGI_FORMAT, UINT);
+static resizeBuffersFunc oResizeBuffers{};
+
+// Possible outstanding reference
+static winrt::com_ptr<ID3D11RenderTargetView> backBufferRTV;
+
+static HRESULT hk_ResizeBuffers(
+    IDXGISwapChain* _this, UINT BufferCount, UINT Width,
+    UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags
+) {
+    // Release reference(s)
+    backBufferRTV = nullptr;
+
+    // Finish resizing
+    return oResizeBuffers(_this, BufferCount, Width,
+        Height, NewFormat, SwapChainFlags);
+}
+
+// void hk_MinHook(void* target, void** original, void* detour) {
+//     MH_Initialize();
+//     MH_CreateHook(target, detour, original);
+//     MH_EnableHook(target);
+// }
+
+// void hk_MinHook(PresentFn target, PresentFn* original, PresentFn detour);
+
+void createHooks() {
+    if (kiero::init(kiero::RenderType::Auto) != kiero::Status::Success) {
+        // Kiero failed to initialize, handle failure case.
+        return;
+    }
+
+    // Kiero provides IDXGISwapChain for both D3D11 and D3D12.
+    // We can use it to hook Present, regardless of the renderer:
+    const auto status = kiero::bind<&IDXGISwapChain::Present>(&oPresent, &hk_Present);
+    assert(status == kiero::Status::Success);
+
+    // If you are using kiero without kiero::bind support, the function's
+    // addressed can be fetched and passed to your own hook function.
+    const auto pPresent = kiero::getMethod<&IDXGISwapChain::Present>();
+    // hk_MinHook(pPresent, &oPresent, &hk_Present);
+}
+
 class LevelRendererPlayer {
     float getFov(LevelRendererPlayer* a1, bool enableVariableFOV, char a3);
     uint8_t padding_x[0xF80];
@@ -134,6 +235,7 @@ static float hk_getTimeOfDay(void* _this, int32_t time, float alpha) {
 static bool g_Running = true;
 
 static DWORD WINAPI startup(LPVOID dll) {
+    createHooks();
     constexpr auto signatureTimeOfDay = hat::compile_signature<"44 8B C2 B8 F1 19 76 05 F7 EA">();
 
     const hat::scan_result scanResult = hat::find_pattern(signatureTimeOfDay, ".text");
@@ -264,8 +366,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 // }
 //
 // static DWORD WINAPI startup(LPVOID dll) {
-//     // New signature with wildcards, in libhat format
-//     // ? bytes stay as "?" just like your pattern/mask combo
 //     constexpr auto signature =
 //         hat::compile_signature<"48 8B C4 48 89 58 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D A8 ? ? ? ? 48 81 EC ? ? ? ? 0F 29 70 ? 0F 29 78 ? 44 0F 29 40 ? 44 0F 29 48 ? 44 0F 29 90 ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 48 8B DA 4C 8B F1">();
 //
@@ -300,21 +400,17 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 //         MH_EnableHook(renderLevelAddr);
 //     }
 //
-//     // If you want to cleanly unload later, you’d call FreeLibraryAndExitThread here.
 //     return 0;
 // }
 //
 // BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 //     switch (fdwReason) {
 //         case DLL_PROCESS_ATTACH:
-//             // Avoid DLL_THREAD_ATTACH/DETACH notifications
 //             DisableThreadLibraryCalls(hinstDLL);
-//             // Start our startup routine on a new thread
 //             CreateThread(nullptr, 0, &startup, hinstDLL, 0, nullptr);
 //             break;
 //
 //         case DLL_PROCESS_DETACH:
-//             // Optional: MH_DisableHook(MH_ALL_HOOKS); MH_Uninitialize();
 //             break;
 //
 //         default:

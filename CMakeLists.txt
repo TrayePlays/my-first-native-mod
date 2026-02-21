@@ -9,11 +9,26 @@ include(cmake/CPM.cmake)
 
 CPMAddPackage("gh:BasedInc/libhat@0.9.0")
 CPMAddPackage("gh:TsudaKageyu/minhook@1.3.4")
+CPMAddPackage(
+        NAME imgui
+        GITHUB_REPOSITORY ocornut/imgui
+        GIT_TAG v1.91.0
+)
+CPMAddPackage(
+        URI "gh:BasedInc/kiero#269860311ac04b0ee89e68f68bca55abd02a3390" # Dec 2, 2025
+        OPTIONS
+            "KIERO_INCLUDE_D3D11 ON"
+            "KIERO_INCLUDE_D3D12 ON"
+            "KIERO_BUILD_MINHOOK ON"
+            "KIERO_MINHOOK_EXTERNAL ON" # If you already have MinHook included
+)
 
 add_library(my_first_native_mod SHARED dllmain.cpp)
 target_link_libraries(my_first_native_mod PRIVATE
         libhat::libhat
-        minhook)
+        minhook
+        kiero::kiero-minhook
+)
 
 #cmake_minimum_required(VERSION 4.1)
 #project(my_first_native_mod)
